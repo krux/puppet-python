@@ -44,6 +44,7 @@ define python::virtualenv (
   $mode                            = '0755',
   Optional[Stdlib::HTTPUrl] $proxy = undef,
   $environment                     = [],
+  $virtualenv_env                  = [],
   $path                            = [ '/bin', '/usr/bin', '/usr/sbin', '/usr/local/bin' ],
   $cwd                             = undef,
   $timeout                         = 1800,
@@ -136,13 +137,15 @@ define python::virtualenv (
     $pip_cmd   = "${python::exec_prefix}${venv_dir}/bin/pip"
     $pip_flags = "${pypi_index} ${proxy_flag} ${pip_args}"
 
+    $_virtualenv_environment = flatten($environment, $virtualenv_env)
+
     exec { "python_virtualenv_${venv_dir}":
       command     => "${virtualenv_cmd} ${system_pkgs_flag} -p ${python} ${venv_dir} && ${pip_cmd} --log ${venv_dir}/pip.log install ${pip_flags} --upgrade pip && ${pip_cmd} install ${pip_flags} --upgrade ${distribute_pkg}",
       user        => $owner,
       creates     => "${venv_dir}/bin/activate",
       path        => $_path,
       cwd         => '/tmp',
-      environment => (Hash($environment.map |$val| { $val.split(/=|$/) }) + $proxy_hash).map|$key, $val| { "${key}=${val}" },
+      environment => (Hash($_virtualenv_environment.map |$val| { $val.split(/=|$/) }) + $proxy_hash).map|$key, $val| { "${key}=${val}" },
       unless      => "grep '^[\\t ]*VIRTUAL_ENV=[\\\\'\\\"]*${venv_dir}[\\\"\\\\'][\\t ]*$' ${venv_dir}/bin/activate", #Unless activate exists and VIRTUAL_ENV is correct we re-create the virtualenv
       require     => File[$venv_dir],
     }
